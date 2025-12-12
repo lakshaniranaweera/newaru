@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Bangers&display=swap" rel="stylesheet">
+<style>
+body, html {
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    font-family:Arial,sans-serif;
+    text-align:center;
+    overflow:hidden;
+}
+
+#videoPage,#startPage,#gamePage,.winnerPage,#adminPage{
+    display:none;
+    top:0;left:0;
+    width:100%;
+    height:100%;
+    position:absolute;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+    background-size:100% 100%;
+}
+
+#videoPage { display:flex; background:#000; }
+#videoPage video { width:100%; height:100%; object-fit:cover; }
+
+#startPage { display:flex; flex-direction:column; justify-content:center; align-items:center; }
+#startPage video {
+    position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:-1;
+}
+
+#gamePage { flex-direction:column; background:url('back.jpeg') no-repeat center/cover; }
+
+.grid { display:grid; grid-template-columns:repeat(4,160px); grid-gap:100px; padding-right:75px; margin-top:60px; }
+.card { width:240px; height:240px; perspective:1000px; cursor:pointer; position:relative; }
+.card-inner { width:100%; height:100%; position:relative; transform-style:preserve-3d; transition:0.3s; }
+.card.flipped .card-inner { transform:rotateY(180deg); }
+.card-front,.card-back { position:absolute; width:100%; height:100%; backface-visibility:hidden; border-radius:10px; }
+.card-back { transform:rotateY(180deg); background-size:cover; background-position:center; }
+
+.winnerPage {
+    display:none;
+    position:absolute;
+    width:100%;
+    height:100%;
+    top:0; left:0;
+    justify-content:center;
+    align-items:center;
+    background:#000;
+}
+
+.winnerPage video {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+}
+
+#countdown {
+    position:absolute;
+    bottom:300px;
+    font-size:90px;
+    font-weight:bold;
+    color:#fff;
+    text-shadow:2px 2px 5px #000;
+}
+
+.grid .card .card-front {
+  background-image: url('logo.png');
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:cover;
+}
+
+#adminPage { display:none; background:#222; color:#fff; z-index:9999; }
+#adminPage h1 { font-size:50px; margin-bottom:30px; }
+#adminForm { width:760px; display:flex; flex-direction:column; gap:15px; }
+#adminForm label { font-size:22px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+#adminForm input { font-size:20px; width:120px; text-align:center; padding:5px; }
+#adminForm button { padding:15px; font-size:22px; background:#28a745; color:#fff; border-radius:20px; border:none; cursor:pointer; }
+
+#settingsIcon {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  font-size: 48px;
+  color: white;
+  cursor: pointer;
+  z-index: 10000;
+}
+
+/* small responsive tweak */
+@media(max-width:820px){
+  .grid { grid-template-columns:repeat(2,160px); grid-gap:40px; padding-right:20px; }
+  #adminForm { width:90%; }
+}
+</style>
+</head>
+<body>
+
+<!-- SETTINGS -->
+<div id="settingsIcon" onclick="openAdmin()">⚙️</div>
+
+<!-- AUDIO -->
+<audio id="pageSound" src="page.mp3" loop></audio>
+<audio id="selectSound" src="select.mp3"></audio>
+<audio id="winnerSound" src="winner.mp3"></audio>
+<audio id="lossSound" src="loss.mp3"></audio>
+
+<!-- ADMIN PAGE -->
+<div id="adminPage">
+  <h1>Game Settings</h1>
+  <form id="adminForm" onsubmit="return false;">
+    <label>Winner Count (global): <input type="number" id="prizeDrink"></label>
+    <label>Game Time (seconds): <input type="number" id="gameTime"></label>
+
+    <!-- New: individual winner counts (1 x 1 layout) -->
+<div style="display:flex; flex-direction:column; gap:15px; justify-content:center; margin-top:10px; text-align:center;">
+    <label>Winner 1 Count: <input type="number" id="winner1Count" min="0"></label>
+    <label>Winner 2 Count: <input type="number" id="winner2Count" min="0"></label>
+    <label>Winner 3 Count: <input type="number" id="winner3Count" min="0"></label>
+    <label>Winner 4 Count: <input type="number" id="winner4Count" min="0"></label>
+    <label>Winner 5 Count: <input type="number" id="winner5Count" min="0"></label>
+    <label>Winner 6 Count: <input type="number" id="winner6Count" min="0"></label>
+</div>
+
+
+    <button type="button" onclick="saveAdminSettings()">Save Settings</button>
+
+    <label style="margin-top:12px;">Play Count: <span id="playCountLabel"></span></label>
+
+    <button type="button" id="clearPlayBtn" onclick="clearPlayCount()" 
+      style="background:red; color:white; font-size:20px; padding:12px; border-radius:20px;">
+      Clear Play Count
+    </button>
+
+  </form>
+</div>
+
+<!-- INTRO VIDEO PAGE -->
+<div id="videoPage">
+  <video autoplay id="introVideo">
+    <source src="intro1.mp4" type="video/mp4">
+  </video>
+</div>
+
+<div id="startPage" style="background:url('background.png') center/cover no-repeat;">
+</div>
+
+<!-- GAME PAGE -->
+<div id="gamePage">
+  <h2></h2>
+  <br><br>
+  <div class="grid" id="gameBoard"></div>
+  <div id="countdown">20</div>
+</div>
+
+<!-- VIDEO RESULT PAGES -->
+<div id="winnerDrink" class="winnerPage">
+    <video autoplay loop>
+        <source src="win.mp4" type="video/mp4">
+    </video>
+</div>
+
+<div id="timeoutPage" class="winnerPage">
+    <video autoplay loop>
+        <source src="loss.mp4" type="video/mp4">
+    </video>
+</div>
+
+<div id="noGiftPage" class="winnerPage">
+    <video autoplay loop>
+        <source src="loss.mp4" type="video/mp4">
+    </video>
+</div>
+
+<!-- NEW WINNER PAGES 1–6 -->
+<div id="winner1" class="winnerPage">
+  <video autoplay loop>
+    <source src="loss.mp4" type="video/mp4">
+  </video>
+</div>
+<div id="winner2" class="winnerPage">
+  <video autoplay loop>
+    <source src="w1.mp4" type="video/mp4">
+  </video>
+</div>
+<div id="winner3" class="winnerPage">
+  <video autoplay loop>
+    <source src="w3.mp4" type="video/mp4">
+  </video>
+</div>
+<div id="winner4" class="winnerPage">
+  <video autoplay loop>
+    <source src="w2.mp4" type="video/mp4">
+  </video>
+</div>
+<div id="winner5" class="winnerPage">
+  <video autoplay loop>
+    <source src="w6.mp4" type="video/mp4">
+  </video>
+</div>
+<div id="winner6" class="winnerPage">
+  <video autoplay loop>
+    <source src="w4.mp4" type="video/mp4">
+  </video>
+</div>
+
+<script>
+/* INTRO VIDEO ROTATION */
+const introVideos = ["intro1.mp4","intro2.mp4","intro3.mp4"];
+let currentIntroIndex = 0;
+function setNextIntroVideo(){
+  const introVideo = document.getElementById("introVideo");
+  introVideo.src = introVideos[currentIntroIndex];
+  introVideo.load();
+  introVideo.play().catch(()=>{});
+  currentIntroIndex = (currentIntroIndex + 1) % introVideos.length;
+}
+
+/* Local Storage */
+let defaultTime=20;
+let gameTime = parseInt(localStorage.getItem("gameTime")) || defaultTime;
+let playCount = parseInt(localStorage.getItem("playCount")) || 0;
+let winnerCount = parseInt(localStorage.getItem("winnerCount")) || 0;
+
+/* NEW: individual winner counts (persisted in localStorage) */
+let winner1Count = parseInt(localStorage.getItem("winner1Count")) || 0;
+let winner2Count = parseInt(localStorage.getItem("winner2Count")) || 0;
+let winner3Count = parseInt(localStorage.getItem("winner3Count")) || 0;
+let winner4Count = parseInt(localStorage.getItem("winner4Count")) || 0;
+let winner5Count = parseInt(localStorage.getItem("winner5Count")) || 0;
+let winner6Count = parseInt(localStorage.getItem("winner6Count")) || 0;
+
+function saveSettings(key, value){ localStorage.setItem(key,value); }
+
+/* Admin Panel */
+function loadAdminForm(){
+  document.getElementById("prizeDrink").value = winnerCount;
+  document.getElementById("gameTime").value = gameTime;
+
+  // populate individual winner counts
+  document.getElementById("winner1Count").value = winner1Count;
+  document.getElementById("winner2Count").value = winner2Count;
+  document.getElementById("winner3Count").value = winner3Count;
+  document.getElementById("winner4Count").value = winner4Count;
+  document.getElementById("winner5Count").value = winner5Count;
+  document.getElementById("winner6Count").value = winner6Count;
+
+  updateAdminPanelLabels();
+}
+
+function updateAdminPanelLabels(){
+  document.getElementById("playCountLabel").innerText = playCount;
+  // Keep admin panel simple — counts are shown in inputs
+}
+
+function saveAdminSettings(){
+  // global winner count and game time
+  winnerCount = parseInt(document.getElementById("prizeDrink").value) || 0;
+  gameTime = parseInt(document.getElementById("gameTime").value) || defaultTime;
+  saveSettings("winnerCount", winnerCount);
+  saveSettings("gameTime", gameTime);
+
+  // read and save individual winner counts
+  winner1Count = parseInt(document.getElementById("winner1Count").value) || 0;
+  winner2Count = parseInt(document.getElementById("winner2Count").value) || 0;
+  winner3Count = parseInt(document.getElementById("winner3Count").value) || 0;
+  winner4Count = parseInt(document.getElementById("winner4Count").value) || 0;
+  winner5Count = parseInt(document.getElementById("winner5Count").value) || 0;
+  winner6Count = parseInt(document.getElementById("winner6Count").value) || 0;
+
+  saveSettings("winner1Count", winner1Count);
+  saveSettings("winner2Count", winner2Count);
+  saveSettings("winner3Count", winner3Count);
+  saveSettings("winner4Count", winner4Count);
+  saveSettings("winner5Count", winner5Count);
+  saveSettings("winner6Count", winner6Count);
+
+  document.getElementById("adminPage").style.display = "none";
+  updateAdminPanelLabels();
+}
+
+function clearPlayCount(){
+    playCount=0;
+    saveSettings("playCount",playCount);
+    updateAdminPanelLabels();
+}
+
+function openAdmin(){
+  loadAdminForm();
+  document.getElementById("adminPage").style.display="flex";
+}
+
+/* GAME LOGIC */
+let selectedCards=[], matchedPairs=0, countdown=20, countdownInterval;
+const pageSound=document.getElementById("pageSound");
+const selectSound=document.getElementById("selectSound");
+const winnerSound=document.getElementById("winnerSound");
+const lossSound=document.getElementById("lossSound");
+const introVideo = document.getElementById("introVideo");
+
+/* STARTUP */
+window.onload=()=>{
+  document.getElementById("videoPage").style.display="flex";
+  setNextIntroVideo();
+  document.getElementById("videoPage").addEventListener("click", ()=> { pageSound.play().catch(()=>{}); goStart(); });
+  document.getElementById("startPage").addEventListener("click", startGame);
+};
+introVideo.addEventListener("ended", setNextIntroVideo);
+
+function pauseAllVideos(){ document.querySelectorAll("video").forEach(v=>v.pause()); }
+
+function goStart(){
+  pauseAllVideos();
+  document.getElementById("videoPage").style.display="none";
+  document.getElementById("startPage").style.display="flex";
+  pageSound.play().catch(()=>{});
+}
+
+function startGame(){
+  playCount++;
+  saveSettings("playCount", playCount);
+  updateAdminPanelLabels();
+  document.getElementById("startPage").style.display="none";
+  document.getElementById("gamePage").style.display="flex";
+  pageSound.play().catch(()=>{});
+  initBoard();
+  startCountdown();
+}
+
+function initBoard(){
+  matchedPairs=0; selectedCards=[];
+  const images=["1.jpg","2.png","3.jpg","4.png","5.png","6.png"];
+  const cardImages=[...images,...images].sort(()=>0.5-Math.random());
+  const board=document.getElementById("gameBoard");
+  board.innerHTML="";
+  cardImages.forEach(img=>{
+    const card=document.createElement("div");
+    card.classList.add("card");
+    card.innerHTML=`<div class="card-inner"><div class="card-front"></div><div class="card-back" style="background-image:url('${img}')"></div></div>`;
+    board.appendChild(card);
+    card.addEventListener("click",()=>flipCard(card,img));
+  });
+}
+
+function flipCard(card,img){
+  if(selectedCards.length<2 && !card.classList.contains("flipped")){
+    card.classList.add("flipped","selected");
+    selectSound.play().catch(()=>{});
+    selectedCards.push({card,img});
+    if(selectedCards.length===2) setTimeout(checkMatch,400);
+  }
+}
+
+function checkMatch(){
+  const [a,b]=selectedCards;
+  if(a.img===b.img){
+    matchedPairs++;
+    if(matchedPairs===6){
+      clearInterval(countdownInterval);
+      showPairWinner(6); // final full win
+    }
+  } else {
+    a.card.classList.remove("flipped","selected");
+    b.card.classList.remove("flipped","selected");
+  }
+  selectedCards=[];
+}
+
+/* COUNTDOWN */
+function startCountdown(){
+  countdown=gameTime;
+  document.getElementById("countdown").innerText=countdown;
+  countdownInterval=setInterval(()=>{
+    countdown--;
+    document.getElementById("countdown").innerText=countdown;
+    if(countdown<=0){
+      clearInterval(countdownInterval);
+      if(matchedPairs>=1 && matchedPairs<=5){
+        showPairWinner(matchedPairs); // show 1-5 winner pages on timeout
+      } else {
+        showTimeout();
+      }
+    }
+  },1000);
+}
+
+/* SHOW WINNER BY PAIR */
+function showPairWinner(pairNumber){
+  // Keep existing global winnerCount behavior
+  if(winnerCount>0){ winnerCount--; saveSettings("winnerCount",winnerCount); }
+
+  // NEW: decrement the specific winnerXCount if >0, but DO NOT block display if count is 0.
+  switch(pairNumber){
+    case 1:
+      if(winner1Count>0){ winner1Count--; saveSettings("winner1Count", winner1Count); }
+      break;
+    case 2:
+      if(winner2Count>0){ winner2Count--; saveSettings("winner2Count", winner2Count); }
+      break;
+    case 3:
+      if(winner3Count>0){ winner3Count--; saveSettings("winner3Count", winner3Count); }
+      break;
+    case 4:
+      if(winner4Count>0){ winner4Count--; saveSettings("winner4Count", winner4Count); }
+      break;
+    case 5:
+      if(winner5Count>0){ winner5Count--; saveSettings("winner5Count", winner5Count); }
+      break;
+    case 6:
+      if(winner6Count>0){ winner6Count--; saveSettings("winner6Count", winner6Count); }
+      break;
+    default:
+      break;
+  }
+
+  pageSound.pause(); winnerSound.play().catch(()=>{});
+  pauseAllVideos();
+  document.getElementById("gamePage").style.display="none";
+
+  // If the pairNumber corresponds to 1..6 and the element exists, show it; otherwise fall back to winnerDrink
+  const page = document.getElementById("winner"+pairNumber) || document.getElementById("winnerDrink");
+  page.style.display="flex";
+  const vid = page.querySelector("video");
+  if(vid){ vid.play().catch(()=>{}); }
+
+  // clicking/touching winner page returns to video page
+  page.onclick = ()=>goVideo();
+
+  // Also update admin labels (so admin sees updated play count / values if admin is open)
+  updateAdminPanelLabels();
+}
+
+/* SHOW TIMEOUT & NOGIFT */
+function showTimeout(){
+  pageSound.pause();
+  lossSound.play().catch(()=>{});
+  document.getElementById("gamePage").style.display="none";
+  pauseAllVideos();
+  const p=document.getElementById("timeoutPage");
+  p.style.display="flex";
+  p.querySelector("video").play().catch(()=>{});
+  p.onclick=()=>goVideo();
+}
+
+function showNoGift(){
+  pageSound.pause();
+  lossSound.play().catch(()=>{});
+  pauseAllVideos();
+  const p=document.getElementById("noGiftPage");
+  p.style.display="flex";
+  p.querySelector("video").play().catch(()=>{});
+  p.onclick=()=>goVideo();
+}
+
+function goVideo(){
+  pauseAllVideos();
+  document.querySelectorAll(".winnerPage").forEach(x=>x.style.display="none");
+  document.getElementById("videoPage").style.display="flex";
+  setNextIntroVideo();
+  pageSound.play().catch(()=>{});
+}
+</script>
+</body>
+</html>
